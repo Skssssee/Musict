@@ -1,13 +1,19 @@
+# ======================================================
+# app.py
+# MAIN ENTRY POINT
+# ======================================================
+
+import asyncio
 from pyrogram import Client
 from config import API_ID, API_HASH, BOT_TOKEN
 
-from assistants.assistant_system import assistant, start_assistant
-from utils.utils import call
-from utils.logs_system import LOGGER
+# ---- ASSISTANT (USER ACCOUNT) ----
+from assistants.assistant_system import start_assistant
 
-# load combined plugins
-import plugins.plugins_system
+# ---- UTILS ----
+from utils.utils_system import call, LOGGER, init_utils
 
+# ---- BOT CLIENT ----
 bot = Client(
     "musicbot",
     api_id=API_ID,
@@ -15,17 +21,31 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
+# ---- LOAD PLUGINS (this auto-loads CORE) ----
+import plugins.plugins_system   # ❗ VERY IMPORTANT
+
+
 async def main():
+    # 1️⃣ Utils init (cookies, logs)
+    await init_utils()
+
+    # 2️⃣ Start assistant (user account)
     LOGGER.info("Starting assistant...")
     await start_assistant()
 
+    # 3️⃣ Start PyTgCalls (VC engine)
     LOGGER.info("Starting PyTgCalls...")
     await call.start()
 
+    # 4️⃣ Start bot
     LOGGER.info("Starting bot...")
     await bot.start()
 
-    LOGGER.info("MusicBot started successfully")
+    LOGGER.info("🎵 MusicBot started successfully")
+
+    # 5️⃣ Idle
     await bot.idle()
 
-bot.run(main())
+
+if __name__ == "__main__":
+    bot.run(main())
