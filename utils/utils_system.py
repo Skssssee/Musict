@@ -1,245 +1,203 @@
+
 # ======================================================
 # utils/utils_system.py
-# ALL UTILS MERGED IN ONE FILE
+# ALL SHARED UTILS (NO COMMANDS HERE)
 # ======================================================
 
 import os
 import time
 import logging
-import asyncio
-from typing import Optional, Dict
+from collections import defaultdict, deque
+from typing import Dict, Deque, Optional
 
-import aiohttp
 import yt_dlp
-
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped, AudioVideoPiped
-from pytgcalls.types.input_stream.quality import (
-    HighQualityAudio,
-    MediumQualityVideo,
-)
-
-from assistants.assistant_system import assistant
-from config import COOKIE_URL, LOGGER_ID
+from config import COOKIE_URL
+from core.core_system import is_logger_enabled, get_logger_chat
 
 
 # ======================================================
-# LOGGER SYSTEM (utils/logger.py + logs_system.py)
+# LOGGER (FILE + LOGGER GC)
 # ======================================================
 
-os.makedirs("logs", exist_ok=True)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s - %(levelname)s] - %(message)s",
-    handlers=[
-        logging.FileHandler("logs/musicbot.log"),
-        logging.StreamHandler()
-    ]
-)
+LOG_DIR = "logs"
+os.makedirs(LOG_DIR, exist_ok=True)
 
 LOGGER = logging.getLogger("MusicBot")
+LOGGER.setLevel(logging.INFO)
+
+file_handler = logging.FileHandler("logs/musicbot.log")
+file_handler.setFormatter(
+    logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s")
+)
+
+LOGGER.addHandler(file_handler)
 
 
 async def send_log(bot, text: str):
     """
-    Send log message to LOGGER_ID (if provided)
+    Send log message to LOGGER GC (if enabled)
     """
-    if not LOGGER_ID:
+    if not is_logger_enabled():
         return
-    try:
-        await bot.send_message(LOGGER_ID, text)
-    except Exception:
-        pass
 
-
-# ======================================================
-# SAFE ERROR HANDLER (utils/errors.py)
-# ======================================================
-
-async def safe_reply(message, text: str):
-    """
-    Safe reply wrapper to avoid crashes
-    """
-    try:
-        await message.reply(text)
-    except Exception:
-        pass
-
-
-# ======================================================
-# COOKIE SYSTEM (utils/cookies.py)
-# ======================================================
-
-COOKIES_PATH = "cookies/cookies.txt"
-
-async def load_cookies():
-    """
-    Load cookies from COOKIE_URL (batbin/gist)
-    Saves to cookies/cookies.txt
-    """
-    if not COOKIE_URL:
+    chat_id = get_logger_chat()
+    if not chat_id:
         return
 
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(COOKIE_URL) as resp:
-                if resp.status == 200:
-                    data = await resp.text()
-                    os.makedirs("cookies", exist_ok=True)
-                    with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                        f.write(data)
-                    LOGGER.info("YouTube cookies loaded successfully")
+        await bot.send_message(chat_id, f"📜 **LOG**\n{text}")
     except Exception as e:
-        LOGGER.error(f"Cookie load failed: {e}")
+        LOGGER.error(f"Failed to send log: {e}")
 
 
 # ======================================================
-# PYTGCALLS INIT (utils/utils.py)
+# QUEUE SYSTEM (IN-MEMORY)
 # ======================================================
 
-call = PyTgCalls(assistant)
+QUEUE: Dict[int, Deque[dict]] = defaultdict(deque)
+NOW_PLAYING: Dict[int, dict] = {}
 
 
-# ======================================================
-# YOUTUBE STREAM HELPERS (utils/youtube.py)
-# ======================================================
-
-def _yt_opts():
-    """
-    Base yt-dlp options (NO DOWNLOAD)
-    """
-    opts = {
-        "quiet": True,
-        "no_warnings": True,
-        "nocheckcertificate": True,
-        "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
-    }
-    return opts
+def add_to_queue(chat_id: int, track: dict):
+    QUEUE[chat_id].append(track)
 
 
-async def get_audio_stream(query: str) -> Optional[str]:
-    """
-    Returns direct audio stream URL
-    """
-    ydl_opts = _yt_opts()
-    ydl_opts["format"] = "bestaudio/best"
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
+def get_next(chat_id: int) -> Optional[dict]:
+    if QUEUE[chat_id]:
+        return QUEUE[chat_id].popleft()
+    return None
 
 
-async def get_video_stream(query: str) -> Optional[str]:
-    """
-    Returns direct video stream URL (<=360p)
-    """
-    ydl_opts = _yt_opts()
-    ydl_opts["format"] = "bestvideo[height<=360]+bestaudio/best"
+def clear_queue(chat_id: int):
+    QUEUE[chat_id].clear()
+    NOW_PLAYING.pop(chat_id, None)
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
+
+def get_queue(chat_id: int):
+    return list(QUEUE[chat_id])
 
 
 # ======================================================
-# VOICE CHAT HELPERS (utils/vc.py)
+# TIME + PROGRESS BAR
 # ======================================================
 
-async def play_audio(chat_id: int, stream_url: str):
-    """
-    Join VC & play audio
-    """
-    await call.join_group_call(
-        chat_id,
-        AudioPiped(stream_url, HighQualityAudio()),
-    )
+def format_time(seconds: int) -> str:
+    m, s = divmod(seconds, 60)
+    h, m = divmod(m, 60)
+    return f"{h}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
-async def play_video(chat_id: int, stream_url: str):
-    """
-    Join VC & play video (360p)
-    """
-    await call.join_group_call(
-        chat_id,
-        AudioVideoPiped(
-            stream_url,
-            HighQualityAudio(),
-            MediumQualityVideo()
-        ),
-    )
-
-
-async def stop_stream(chat_id: int):
-    """
-    Stop VC stream
-    """
-    try:
-        await call.leave_group_call(chat_id)
-    except Exception:
-        pass
+def progress_bar(elapsed: int, total: int, size: int = 12) -> str:
+    if total <= 0:
+        return "━" * size
+    filled = int(size * elapsed / total)
+    return "▰" * filled + "▱" * (size - filled)
 
 
 # ======================================================
-# CACHE SYSTEM (utils/cache.py)
-# ======================================================
-# Same song repeat ho → instant play
-
-STREAM_CACHE: Dict[str, str] = {}
-
-def get_cached(query: str) -> Optional[str]:
-    return STREAM_CACHE.get(query)
-
-def set_cache(query: str, stream_url: str):
-    STREAM_CACHE[query] = stream_url
-
-
-# ======================================================
-# PLAYER UI (utils/player_ui.py)
+# INLINE PLAYER UI
 # ======================================================
 
 def player_buttons():
-    """
-    Inline buttons for player
-    """
     return InlineKeyboardMarkup(
         [
-            [
-                InlineKeyboardButton("⏸ Pause", callback_data="pause"),
-                InlineKeyboardButton("▶ Resume", callback_data="resume"),
-            ],
             [
                 InlineKeyboardButton("⏭ Skip", callback_data="skip"),
                 InlineKeyboardButton("⏹ Stop", callback_data="stop"),
             ],
             [
+                InlineKeyboardButton("📃 Queue", callback_data="queue"),
                 InlineKeyboardButton("❌ Close", callback_data="close"),
-            ]
+            ],
         ]
     )
 
 
-def now_playing_text(title: str, duration: str, user):
-    """
-    Now playing message formatter
-    """
+def now_playing_text(track: dict, user) -> str:
     return (
         f"🎶 **Now Playing**\n\n"
-        f"**Title:** {title}\n"
-        f"**Duration:** {duration}\n"
+        f"**Title:** {track['title']}\n"
+        f"**Duration:** {format_time(track['duration'])}\n"
         f"**Requested by:** {user.mention}"
     )
 
 
 # ======================================================
-# UTILS INIT HOOK
+# COOKIES HANDLING (YT BLOCK FIX)
 # ======================================================
 
-async def init_utils():
+COOKIES_FILE = "cookies/cookies.txt"
+
+
+def ensure_cookies():
     """
-    Call once on startup
+    If COOKIE_URL is given, yt-dlp will auto use cookies.txt
     """
-    await load_cookies()
-    LOGGER.info("Utils system initialized")
+    if COOKIE_URL and os.path.exists(COOKIES_FILE):
+        return COOKIES_FILE
+    return None
+
+
+# ======================================================
+# YOUTUBE STREAM FETCH (NO DOWNLOAD)
+# ======================================================
+
+YDL_OPTS = {
+    "quiet": True,
+    "no_warnings": True,
+    "noplaylist": True,
+    "format": "bestaudio/best",
+}
+
+
+def fetch_youtube(query: str) -> dict:
+    """
+    Returns stream URL + metadata (NO DOWNLOAD)
+    """
+    cookies = ensure_cookies()
+    if cookies:
+        YDL_OPTS["cookiefile"] = cookies
+
+    with yt_dlp.YoutubeDL(YDL_OPTS) as ydl:
+        info = ydl.extract_info(query, download=False)
+
+        return {
+            "title": info.get("title"),
+            "url": info["url"],
+            "duration": info.get("duration", 0),
+            "thumbnail": info.get("thumbnail"),
+        }
+
+
+# ======================================================
+# STREAM HELPERS (USED BY PyTgCalls)
+# ======================================================
+
+async def get_audio_stream(query: str) -> dict:
+    return fetch_youtube(query)
+
+
+async def get_video_stream(query: str) -> dict:
+    YDL_OPTS["format"] = "bestvideo[height<=360]+bestaudio/best"
+    return fetch_youtube(query)
+
+
+# ======================================================
+# WHY THIS FILE EXISTS (SUMMARY)
+# ======================================================
+"""
+utils_system.py kya karta hai?
+
+✅ Queue management
+✅ Progress bar + time formatting
+✅ Inline buttons UI
+✅ YouTube direct stream (NO download → low storage)
+✅ Cookies support (YT block bypass)
+✅ Logger (file + logger GC)
+
+❌ Commands nahi
+❌ Bot decorators nahi
+❌ Assistant login nahi
+"""
