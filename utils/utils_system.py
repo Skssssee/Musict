@@ -1,23 +1,17 @@
 # ======================================================
-# utils/utils_system.py
-# FIXED + CLEAN (NO CIRCULAR IMPORT)
+# utils/utils_system.py  (PY-TGCALLS 2.x FIXED)
 # ======================================================
 
 import os
 import logging
-from typing import Optional, Dict
-
 import aiohttp
 import yt_dlp
-
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from typing import Optional
 
 from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import AudioPiped, AudioVideoPiped
-from pytgcalls.types.input_stream.quality import (
-    HighQualityAudio,
-    MediumQualityVideo,
-)
+from pytgcalls.types import MediaStream, AudioQuality, VideoQuality
+
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from config import COOKIE_URL, LOGGER_ID
 
@@ -55,33 +49,28 @@ async def send_log(bot, text: str):
 
 COOKIES_PATH = "cookies/cookies.txt"
 
-
 async def load_cookies():
     if not COOKIE_URL:
         return
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(COOKIE_URL) as resp:
-                if resp.status == 200:
+            async with session.get(COOKIE_URL) as r:
+                if r.status == 200:
                     os.makedirs("cookies", exist_ok=True)
-                    with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                        f.write(await resp.text())
-                    LOGGER.info("YouTube cookies loaded")
+                    with open(COOKIES_PATH, "w") as f:
+                        f.write(await r.text())
+                    LOGGER.info("Cookies loaded")
     except Exception as e:
-        LOGGER.error(f"Cookie load failed: {e}")
+        LOGGER.error(e)
 
 
 # ======================================================
-# PYTGCALLS SINGLETON (IMPORTANT)
+# PYTGCALLS FACTORY (NO CIRCULAR IMPORT)
 # ======================================================
 
-_call: Optional[PyTgCalls] = None
-
+_call: PyTgCalls | None = None
 
 def get_call(assistant):
-    """
-    Create PyTgCalls instance ONCE using assistant
-    """
     global _call
     if _call is None:
         _call = PyTgCalls(assistant)
@@ -89,106 +78,73 @@ def get_call(assistant):
 
 
 # ======================================================
-# YOUTUBE STREAM
+# YOUTUBE STREAM (NO DOWNLOAD)
 # ======================================================
 
 def _yt_opts():
     return {
         "quiet": True,
         "no_warnings": True,
+        "format": "bestaudio/best",
         "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
     }
 
 
-async def get_audio_stream(query: str) -> Optional[str]:
-    opts = _yt_opts()
-    opts["format"] = "bestaudio/best"
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
+async def get_audio_stream(url: str) -> str:
+    with yt_dlp.YoutubeDL(_yt_opts()) as ydl:
+        info = ydl.extract_info(url, download=False)
+        return info["url"]
 
 
-async def get_video_stream(query: str) -> Optional[str]:
+async def get_video_stream(url: str) -> str:
     opts = _yt_opts()
     opts["format"] = "bestvideo[height<=360]+bestaudio/best"
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
+        info = ydl.extract_info(url, download=False)
+        return info["url"]
 
 
 # ======================================================
-# VOICE CHAT CONTROLS
+# VC HELPERS
 # ======================================================
 
 async def play_audio(call: PyTgCalls, chat_id: int, stream_url: str):
     await call.join_group_call(
         chat_id,
-        AudioPiped(stream_url, HighQualityAudio()),
+        MediaStream(
+            stream_url,
+            audio_quality=AudioQuality.HIGH,
+        )
     )
 
 
 async def play_video(call: PyTgCalls, chat_id: int, stream_url: str):
     await call.join_group_call(
         chat_id,
-        AudioVideoPiped(
+        MediaStream(
             stream_url,
-            HighQualityAudio(),
-            MediumQualityVideo()
-        ),
+            audio_quality=AudioQuality.HIGH,
+            video_quality=VideoQuality.MEDIUM,
+        )
     )
 
 
 async def stop_stream(call: PyTgCalls, chat_id: int):
-    try:
-        await call.leave_group_call(chat_id)
-    except Exception:
-        pass
+    await call.leave_group_call(chat_id)
 
 
 # ======================================================
-# CACHE (OPTIONAL)
-# ======================================================
-
-STREAM_CACHE: Dict[str, str] = {}
-
-
-def get_cached(query: str) -> Optional[str]:
-    return STREAM_CACHE.get(query)
-
-
-def set_cache(query: str, url: str):
-    STREAM_CACHE[query] = url
-
-
-# ======================================================
-# PLAYER UI
+# UI
 # ======================================================
 
 def player_buttons():
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("⏸ Pause", callback_data="pause"),
-                InlineKeyboardButton("▶ Resume", callback_data="resume"),
-            ],
-            [
-                InlineKeyboardButton("⏭ Skip", callback_data="skip"),
-                InlineKeyboardButton("⏹ Stop", callback_data="stop"),
-            ],
-            [
-                InlineKeyboardButton("❌ Close", callback_data="close"),
-            ],
-        ]
+        [[InlineKeyboardButton("❌ Close", callback_data="close")]]
     )
 
 
-def now_playing_text(title: str, duration: str, user):
-    return (
-        f"🎶 **Now Playing**\n\n"
-        f"**Title:** {title}\n"
-        f"**Duration:** {duration}\n"
-        f"**Requested by:** {user.mention}"
-    )
+def now_playing_text(title, user):
+    return f"🎵 **Now Playing**\n{title}\nRequested by {user.mention}"
 
 
 # ======================================================
@@ -197,4 +153,4 @@ def now_playing_text(title: str, duration: str, user):
 
 async def init_utils():
     await load_cookies()
-    LOGGER.info("Utils initialized")
+    LOGGER.info("Utils ready")
