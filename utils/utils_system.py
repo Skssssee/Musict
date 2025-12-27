@@ -1,40 +1,33 @@
-
 # ======================================================
 # utils/utils_system.py
-# WORKING WITH py-tgcalls 2.2.x
+# FIXED FOR py-tgcalls 2.2.x
 # ======================================================
 
 import os
 import logging
-from typing import Optional, Dict
-
 import aiohttp
 import yt_dlp
+from typing import Optional, Dict
 
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# ✅ CORRECT imports for py-tgcalls 2.2.x
+# ✅ CORRECT IMPORTS FOR py-tgcalls 2.2.x
 from pytgcalls import PyTgCalls
-from pytgcalls.types.input_stream import (
-    AudioPiped,
-    AudioVideoPiped,
-    AudioParameters,
-    VideoParameters,
-)
+from pytgcalls.types.stream import AudioPiped, AudioVideoPiped
 
 from assistants.assistant_system import assistant
 from config import COOKIE_URL, LOGGER_ID
 
 
 # ======================================================
-# LOGGER
+# LOGGER SETUP
 # ======================================================
 
 os.makedirs("logs", exist_ok=True)
 
 logging.basicConfig(
     level=logging.INFO,
-    format="[%(asctime)s - %(levelname)s] - %(message)s",
+    format="[%(asctime)s - %(levelname)s] %(message)s",
     handlers=[
         logging.FileHandler("logs/musicbot.log"),
         logging.StreamHandler()
@@ -54,11 +47,10 @@ async def send_log(bot, text: str):
 
 
 # ======================================================
-# COOKIES
+# COOKIE SYSTEM
 # ======================================================
 
 COOKIES_PATH = "cookies/cookies.txt"
-
 
 async def load_cookies():
     if not COOKIE_URL:
@@ -68,12 +60,13 @@ async def load_cookies():
         async with aiohttp.ClientSession() as session:
             async with session.get(COOKIE_URL) as resp:
                 if resp.status == 200:
+                    data = await resp.text()
                     os.makedirs("cookies", exist_ok=True)
                     with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                        f.write(await resp.text())
+                        f.write(data)
                     LOGGER.info("YouTube cookies loaded")
     except Exception as e:
-        LOGGER.error(f"Cookie error: {e}")
+        LOGGER.error(f"Cookie load failed: {e}")
 
 
 # ======================================================
@@ -84,58 +77,48 @@ call = PyTgCalls(assistant)
 
 
 # ======================================================
-# YOUTUBE STREAM
+# YT-DLP STREAM (NO DOWNLOAD)
 # ======================================================
 
 def _yt_opts():
     return {
         "quiet": True,
         "no_warnings": True,
-        "nocheckcertificate": True,
+        "format": "bestaudio/best",
         "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
     }
 
 
 async def get_audio_stream(query: str) -> Optional[str]:
-    ydl_opts = _yt_opts()
-    ydl_opts["format"] = "bestaudio/best"
-
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(_yt_opts()) as ydl:
         info = ydl.extract_info(query, download=False)
         return info["url"]
 
 
 async def get_video_stream(query: str) -> Optional[str]:
-    ydl_opts = _yt_opts()
-    ydl_opts["format"] = "bestvideo[height<=360]+bestaudio/best"
+    opts = _yt_opts()
+    opts["format"] = "bestvideo[height<=360]+bestaudio/best"
 
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+    with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(query, download=False)
         return info["url"]
 
 
 # ======================================================
-# VC CONTROLS
+# VOICE CHAT CONTROLS
 # ======================================================
 
 async def play_audio(chat_id: int, stream_url: str):
     await call.join_group_call(
         chat_id,
-        AudioPiped(
-            stream_url,
-            AudioParameters(bitrate=48000)
-        )
+        AudioPiped(stream_url)
     )
 
 
 async def play_video(chat_id: int, stream_url: str):
     await call.join_group_call(
         chat_id,
-        AudioVideoPiped(
-            stream_url,
-            AudioParameters(bitrate=48000),
-            VideoParameters(width=640, height=360, fps=30)
-        )
+        AudioVideoPiped(stream_url)
     )
 
 
@@ -147,18 +130,16 @@ async def stop_stream(chat_id: int):
 
 
 # ======================================================
-# CACHE
+# SIMPLE CACHE
 # ======================================================
 
 STREAM_CACHE: Dict[str, str] = {}
 
-
-def get_cached(query: str) -> Optional[str]:
+def get_cached(query: str):
     return STREAM_CACHE.get(query)
 
-
-def set_cache(query: str, stream_url: str):
-    STREAM_CACHE[query] = stream_url
+def set_cache(query: str, url: str):
+    STREAM_CACHE[query] = url
 
 
 # ======================================================
@@ -183,7 +164,7 @@ def player_buttons():
     )
 
 
-def now_playing_text(title: str, duration: str, user):
+def now_playing_text(title, duration, user):
     return (
         f"🎶 **Now Playing**\n\n"
         f"**Title:** {title}\n"
