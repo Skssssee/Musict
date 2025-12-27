@@ -1,0 +1,9 @@
+pyrogram
+tgcrypto
+pytgcalls
+yt-dlp
+aiohttp
+pymongo
+psutil
+python-dotenv
+av
