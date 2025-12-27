@@ -1,8 +1,8 @@
 pyrogram==2.0.106
 tgcrypto
+pytgcalls==0.9.7
 yt-dlp
 aiohttp
 pymongo
 psutil
 python-dotenv
-av
