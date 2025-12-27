@@ -1,6 +1,6 @@
 pyrogram==2.0.106
 tgcrypto
-pytgcalls==0.9.7
+pytgcalls==0.0.24
 yt-dlp
 aiohttp
 pymongo
