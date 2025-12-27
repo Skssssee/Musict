@@ -1,7 +1,7 @@
 
 # ======================================================
 # utils/utils_system.py
-# FIXED FOR py-tgcalls 2.x (STABLE)
+# WORKING WITH py-tgcalls 2.2.x
 # ======================================================
 
 import os
@@ -13,17 +13,21 @@ import yt_dlp
 
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# 🔥 py-tgcalls 2.x correct imports
+# ✅ CORRECT imports for py-tgcalls 2.2.x
 from pytgcalls import PyTgCalls
-from pytgcalls.types import AudioPiped, AudioVideoPiped
-from pytgcalls.types.input_stream import AudioParameters, VideoParameters
+from pytgcalls.types.input_stream import (
+    AudioPiped,
+    AudioVideoPiped,
+    AudioParameters,
+    VideoParameters,
+)
 
 from assistants.assistant_system import assistant
 from config import COOKIE_URL, LOGGER_ID
 
 
 # ======================================================
-# LOGGER SYSTEM
+# LOGGER
 # ======================================================
 
 os.makedirs("logs", exist_ok=True)
@@ -64,10 +68,9 @@ async def load_cookies():
         async with aiohttp.ClientSession() as session:
             async with session.get(COOKIE_URL) as resp:
                 if resp.status == 200:
-                    data = await resp.text()
                     os.makedirs("cookies", exist_ok=True)
                     with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                        f.write(data)
+                        f.write(await resp.text())
                     LOGGER.info("YouTube cookies loaded")
     except Exception as e:
         LOGGER.error(f"Cookie error: {e}")
@@ -81,7 +84,7 @@ call = PyTgCalls(assistant)
 
 
 # ======================================================
-# YT-DLP STREAM HELPERS
+# YOUTUBE STREAM
 # ======================================================
 
 def _yt_opts():
@@ -99,7 +102,7 @@ async def get_audio_stream(query: str) -> Optional[str]:
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(query, download=False)
-        return info.get("url")
+        return info["url"]
 
 
 async def get_video_stream(query: str) -> Optional[str]:
@@ -108,11 +111,11 @@ async def get_video_stream(query: str) -> Optional[str]:
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(query, download=False)
-        return info.get("url")
+        return info["url"]
 
 
 # ======================================================
-# VC CONTROLS (FIXED)
+# VC CONTROLS
 # ======================================================
 
 async def play_audio(chat_id: int, stream_url: str):
@@ -144,7 +147,7 @@ async def stop_stream(chat_id: int):
 
 
 # ======================================================
-# SIMPLE CACHE
+# CACHE
 # ======================================================
 
 STREAM_CACHE: Dict[str, str] = {}
