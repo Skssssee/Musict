@@ -1,21 +1,15 @@
-# ======================================================
 # utils/utils_system.py
-# COMPLETE & STABLE (PyTgCalls 2.x)
-# ======================================================
 
 import os
 import logging
 import aiohttp
 import yt_dlp
-from typing import Optional
-
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from pytgcalls import PyTgCalls
 from pytgcalls.types import MediaStream, AudioQuality, VideoQuality
 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from config import COOKIE_URL, LOGGER_ID
-
 
 # ======================================================
 # LOGGER
@@ -36,7 +30,6 @@ LOGGER = logging.getLogger("MusicBot")
 
 
 async def send_log(bot, text: str):
-    """Send logs to LOGGER_ID"""
     if not LOGGER_ID:
         return
     try:
@@ -59,20 +52,20 @@ async def load_cookies():
             async with session.get(COOKIE_URL) as r:
                 if r.status == 200:
                     os.makedirs("cookies", exist_ok=True)
-                    with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+                    with open(COOKIES_PATH, "w") as f:
                         f.write(await r.text())
-                    LOGGER.info("YouTube cookies loaded")
+                    LOGGER.info("Cookies loaded")
     except Exception as e:
-        LOGGER.error(f"Cookie load failed: {e}")
+        LOGGER.error(e)
 
 
 # ======================================================
-# PYTGCALLS FACTORY (NO CIRCULAR IMPORT)
+# PYTGCALLS SINGLETON (IMPORTANT)
 # ======================================================
 
 _call: PyTgCalls | None = None
 
-def get_call(assistant) -> PyTgCalls:
+def get_call(assistant):
     global _call
     if _call is None:
         _call = PyTgCalls(assistant)
@@ -80,22 +73,20 @@ def get_call(assistant) -> PyTgCalls:
 
 
 # ======================================================
-# YT-DLP HELPERS (NO DOWNLOAD)
+# YOUTUBE STREAM
 # ======================================================
 
 def _yt_opts():
     return {
         "quiet": True,
         "no_warnings": True,
+        "format": "bestaudio/best",
         "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
     }
 
 
 async def get_audio_stream(url: str) -> str:
-    opts = _yt_opts()
-    opts["format"] = "bestaudio/best"
-
-    with yt_dlp.YoutubeDL(opts) as ydl:
+    with yt_dlp.YoutubeDL(_yt_opts()) as ydl:
         info = ydl.extract_info(url, download=False)
         return info["url"]
 
@@ -103,27 +94,25 @@ async def get_audio_stream(url: str) -> str:
 async def get_video_stream(url: str) -> str:
     opts = _yt_opts()
     opts["format"] = "bestvideo[height<=360]+bestaudio/best"
-
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(url, download=False)
         return info["url"]
 
 
 # ======================================================
-# VOICE CHAT HELPERS
+# VC HELPERS (🔥 FIXED SIGNATURE)
 # ======================================================
 
-async def play_audio(call: PyTgCalls, chat_id: int, stream_url: str):
+async def play_audio(chat_id: int, stream_url: str):
+    call = _call
     await call.join_group_call(
         chat_id,
-        MediaStream(
-            stream_url,
-            audio_quality=AudioQuality.HIGH
-        )
+        MediaStream(stream_url, audio_quality=AudioQuality.HIGH)
     )
 
 
-async def play_video(call: PyTgCalls, chat_id: int, stream_url: str):
+async def play_video(chat_id: int, stream_url: str):
+    call = _call
     await call.join_group_call(
         chat_id,
         MediaStream(
@@ -134,34 +123,23 @@ async def play_video(call: PyTgCalls, chat_id: int, stream_url: str):
     )
 
 
-async def stop_stream(call: PyTgCalls, chat_id: int):
-    try:
-        await call.leave_group_call(chat_id)
-    except Exception:
-        pass
+async def stop_stream(chat_id: int):
+    call = _call
+    await call.leave_group_call(chat_id)
 
 
 # ======================================================
-# PLAYER UI
+# UI
 # ======================================================
 
 def player_buttons():
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("⏹ Stop", callback_data="stop"),
-                InlineKeyboardButton("❌ Close", callback_data="close")
-            ]
-        ]
+        [[InlineKeyboardButton("❌ Close", callback_data="close")]]
     )
 
 
-def now_playing_text(title: str, user):
-    return (
-        f"🎵 **Now Playing**\n\n"
-        f"**Title:** {title}\n"
-        f"**Requested by:** {user.mention}"
-    )
+def now_playing_text(title, user):
+    return f"🎵 **Now Playing**\n{title}\nRequested by {user.mention}"
 
 
 # ======================================================
