@@ -1,23 +1,17 @@
-# ======================================================
 # utils/utils_system.py
-# FIXED FOR py-tgcalls 2.x (NO OLD API)
-# ======================================================
+# WORKING WITH py-tgcalls 2.2.0rc1
 
 import os
 import logging
 import aiohttp
-from typing import Optional, Dict
-
 import yt_dlp
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pytgcalls import PyTgCalls
-from pytgcalls.types.stream import StreamAudio, StreamVideo
-from pytgcalls.types.input_stream import InputAudioStream, InputVideoStream
+from pytgcalls.types import AudioStream, VideoStream
 
 from assistants.assistant_system import assistant
 from config import COOKIE_URL, LOGGER_ID
-
 
 # ================= LOGGER =================
 
@@ -34,12 +28,11 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger("MusicBot")
 
-
 async def send_log(bot, text: str):
     if LOGGER_ID:
         try:
             await bot.send_message(LOGGER_ID, text)
-        except Exception:
+        except:
             pass
 
 
@@ -51,15 +44,15 @@ async def load_cookies():
     if not COOKIE_URL:
         return
     try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(COOKIE_URL) as resp:
-                if resp.status == 200:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(COOKIE_URL) as r:
+                if r.status == 200:
                     os.makedirs("cookies", exist_ok=True)
-                    with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                        f.write(await resp.text())
-                    LOGGER.info("YouTube cookies loaded")
+                    with open(COOKIES_PATH, "w") as f:
+                        f.write(await r.text())
+                    LOGGER.info("Cookies loaded")
     except Exception as e:
-        LOGGER.error(f"Cookie error: {e}")
+        LOGGER.error(e)
 
 
 # ================= PYTGCALLS =================
@@ -76,12 +69,10 @@ def yt_opts():
         "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
     }
 
-
 async def get_audio_stream(query: str) -> str:
     with yt_dlp.YoutubeDL({**yt_opts(), "format": "bestaudio"}) as ydl:
         info = ydl.extract_info(query, download=False)
         return info["url"]
-
 
 async def get_video_stream(query: str) -> str:
     with yt_dlp.YoutubeDL(
@@ -94,55 +85,28 @@ async def get_video_stream(query: str) -> str:
 # ================= VOICE CHAT =================
 
 async def play_audio(chat_id: int, url: str):
-    await call.join_group_call(
-        chat_id,
-        StreamAudio(InputAudioStream(url))
-    )
-
+    await call.join_group_call(chat_id, AudioStream(url))
 
 async def play_video(chat_id: int, url: str):
-    await call.join_group_call(
-        chat_id,
-        StreamVideo(
-            InputAudioStream(url),
-            InputVideoStream(url)
-        )
-    )
-
+    await call.join_group_call(chat_id, VideoStream(url))
 
 async def stop_stream(chat_id: int):
     try:
         await call.leave_group_call(chat_id)
-    except Exception:
+    except:
         pass
 
 
-# ================= PLAYER UI =================
+# ================= UI =================
 
 def player_buttons():
     return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton("⏭ Skip", callback_data="skip"),
-                InlineKeyboardButton("⏹ Stop", callback_data="stop"),
-            ],
-            [
-                InlineKeyboardButton("❌ Close", callback_data="close"),
-            ]
-        ]
+        [[InlineKeyboardButton("❌ Close", callback_data="close")]]
     )
 
-
-def now_playing_text(title: str, user):
-    return (
-        f"🎶 **Now Playing**\n\n"
-        f"**{title}**\n"
-        f"Requested by {user.mention}"
-    )
-
-
-# ================= INIT =================
+def now_playing_text(title, user):
+    return f"🎶 **Now Playing**\n{title}\nRequested by {user.mention}"
 
 async def init_utils():
     await load_cookies()
-    LOGGER.info("Utils initialized")
+    LOGGER.info("Utils ready")
