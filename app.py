@@ -1,16 +1,17 @@
 # ======================================================
-# app.py  (FINAL – STABLE)
+# app.py  (FINAL – STABLE, NO PEER ERROR)
 # ======================================================
 
 import asyncio
 from pyrogram import Client
-from pyrogram.errors import UserAlreadyParticipant
 
-from config import API_ID, API_HASH, BOT_TOKEN, LOGGER_ID
-from assistants.assistant_system import start_assistant, assistant
+from config import API_ID, API_HASH, BOT_TOKEN
+from assistants.assistant_system import start_assistant
 from utils.utils_system import LOGGER, init_utils
 
-# ---- BOT CLIENT ----
+# ------------------------------------------------------
+# BOT CLIENT
+# ------------------------------------------------------
 bot = Client(
     "musicbot",
     api_id=API_ID,
@@ -18,40 +19,35 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-# ---- LOAD PLUGINS ----
-import plugins.plugins_system   # DO NOT REMOVE
+# ------------------------------------------------------
+# LOAD PLUGINS (VERY IMPORTANT)
+# ------------------------------------------------------
+import plugins.plugins_system  # ❗ DO NOT REMOVE
 
 
+# ------------------------------------------------------
+# MAIN
+# ------------------------------------------------------
 async def main():
-    # 1️⃣ Utils
+    # 1️⃣ Init utils (cookies, logger)
     await init_utils()
 
-    # 2️⃣ Assistant
+    # 2️⃣ Start assistant (already added manually in group)
     LOGGER.info("Starting assistant...")
     await start_assistant()
 
-    # 3️⃣ Auto-join logger group (FIX PEER ID INVALID)
-    if LOGGER_ID:
-        try:
-            await assistant.join_chat(LOGGER_ID)
-            await assistant.send_message(
-                LOGGER_ID,
-                "✅ Assistant joined group automatically"
-            )
-        except UserAlreadyParticipant:
-            pass
-        except Exception as e:
-            LOGGER.warning(f"Assistant join failed: {e}")
-
-    # 4️⃣ Start bot
+    # 3️⃣ Start bot
     LOGGER.info("Starting bot...")
     await bot.start()
 
     LOGGER.info("🎵 MusicBot started successfully")
 
-    # 5️⃣ Idle
+    # 4️⃣ Idle forever
     await asyncio.Event().wait()
 
 
+# ------------------------------------------------------
+# RUN
+# ------------------------------------------------------
 if __name__ == "__main__":
     asyncio.get_event_loop().run_until_complete(main())
