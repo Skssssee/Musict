@@ -1,20 +1,13 @@
-# ======================================================
 # utils/utils_system.py
-# COMPATIBLE WITH py-tgcalls 2.1.0
-# ======================================================
 
 import os
 import logging
 import aiohttp
 import yt_dlp
-from typing import Optional, Dict
-
+from typing import Optional
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pytgcalls import PyTgCalls
-
-from assistants.assistant_system import assistant
 from config import COOKIE_URL, LOGGER_ID
-
 
 # ======================================================
 # LOGGER
@@ -33,22 +26,15 @@ logging.basicConfig(
 
 LOGGER = logging.getLogger("MusicBot")
 
-
-async def send_log(bot, text: str):
-    if not LOGGER_ID:
-        return
-    try:
-        await bot.send_message(LOGGER_ID, text)
-    except Exception:
-        pass
-
-
 # ======================================================
-# PYTGCALLS INIT (IMPORTANT)
+# PYTGCALLS (assistant injected later)
 # ======================================================
 
-call = PyTgCalls(assistant)
+call: PyTgCalls | None = None
 
+def init_pytgcalls(assistant_client):
+    global call
+    call = PyTgCalls(assistant_client)
 
 # ======================================================
 # COOKIE SYSTEM
@@ -68,11 +54,10 @@ async def load_cookies():
                         f.write(await resp.text())
                     LOGGER.info("Cookies loaded")
     except Exception as e:
-        LOGGER.error(f"Cookie load failed: {e}")
-
+        LOGGER.error(f"Cookie error: {e}")
 
 # ======================================================
-# YOUTUBE STREAM (NO DOWNLOAD)
+# YOUTUBE STREAM
 # ======================================================
 
 def _yt_opts():
@@ -82,48 +67,29 @@ def _yt_opts():
         "cookiefile": COOKIES_PATH if os.path.exists(COOKIES_PATH) else None,
     }
 
-
 async def get_audio_stream(query: str) -> Optional[str]:
     with yt_dlp.YoutubeDL({**_yt_opts(), "format": "bestaudio"}) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
-
+        return ydl.extract_info(query, download=False).get("url")
 
 async def get_video_stream(query: str) -> Optional[str]:
     with yt_dlp.YoutubeDL({**_yt_opts(), "format": "best[height<=360]"}) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info.get("url")
-
+        return ydl.extract_info(query, download=False).get("url")
 
 # ======================================================
-# VOICE CHAT CONTROL (CORRECT WAY)
+# VC CONTROL
 # ======================================================
 
 async def play_audio(chat_id: int, url: str):
-    await call.join_group_call(
-        chat_id,
-        url,
-        stream_type="audio"
-    )
-
+    await call.join_group_call(chat_id, url, stream_type="audio")
 
 async def play_video(chat_id: int, url: str):
-    await call.join_group_call(
-        chat_id,
-        url,
-        stream_type="video"
-    )
-
+    await call.join_group_call(chat_id, url, stream_type="video")
 
 async def stop_stream(chat_id: int):
-    try:
-        await call.leave_group_call(chat_id)
-    except Exception:
-        pass
-
+    await call.leave_group_call(chat_id)
 
 # ======================================================
-# PLAYER UI
+# UI
 # ======================================================
 
 def player_buttons():
@@ -137,19 +103,10 @@ def player_buttons():
         ]
     )
 
-
-def now_playing_text(title: str, user):
-    return (
-        f"🎶 **Now Playing**\n\n"
-        f"**Title:** {title}\n"
-        f"**Requested by:** {user.mention}"
-    )
-
-
 # ======================================================
 # INIT
 # ======================================================
 
 async def init_utils():
     await load_cookies()
-    LOGGER.info("Utils initialized (py-tgcalls 2.1.0)")
+    LOGGER.info("Utils ready")
