@@ -1,26 +1,24 @@
-# ======================================================
 # assistants/assistant_system.py
-# ======================================================
 
 from pyrogram import Client
 from pyrogram.errors import RPCError
-
 from config import API_ID, API_HASH, STRING_SESSION
 from utils.logger import LOGGER
-
 
 assistant = Client(
     name="assistant",
     api_id=API_ID,
     api_hash=API_HASH,
     session_string=STRING_SESSION,
-    in_memory=True
+    in_memory=False,                 # 🔥 IMPORTANT
+    workdir="assistant_session"      # 🔥 IMPORTANT
 )
 
+# 🔥 THIS FIX STOPS PEER-ID CRASH
+@assistant.on_raw_update()
+async def _ignore_unknown_peers(client, update, users, chats):
+    return
 
-# ======================================================
-# START ASSISTANT
-# ======================================================
 
 async def start_assistant():
     try:
@@ -37,10 +35,6 @@ async def start_assistant():
         raise SystemExit("Assistant could not start")
 
 
-# ======================================================
-# STOP ASSISTANT
-# ======================================================
-
 async def stop_assistant():
     try:
         if assistant.is_connected:
@@ -50,16 +44,12 @@ async def stop_assistant():
         LOGGER.error(f"Assistant stop error: {e}")
 
 
-# ======================================================
-# HELPERS
-# ======================================================
-
-async def get_assistant_id() -> int:
+async def get_assistant_id():
     me = await assistant.get_me()
     return me.id
 
 
-async def is_assistant_alive() -> bool:
+async def is_assistant_alive():
     try:
         await assistant.get_me()
         return True
