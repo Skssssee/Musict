@@ -19,5 +19,5 @@ OWNER_ID = get_env("OWNER_ID", int)
 
 LOGGER_ID = int(os.getenv("LOG_GROUP_ID")) if os.getenv("LOG_GROUP_ID") else None
 MONGO_DB_URI = get_env("MONGO_DB_URI")
-DATABASE_NAME = getenv("DATABASE_NAME", "musicbot")
+DATABASE_NAME=getenv("DATABASE_NAME")
 COOKIE_URL = os.getenv("COOKIE_URL")
