@@ -1,26 +1,20 @@
-
 # ======================================================
 # app.py
-# MAIN ENTRY POINT (FINAL FIXED)
+# MAIN ENTRY POINT (PYROGRAM 2.x FIXED)
 # ======================================================
 
 import asyncio
-from pyrogram import Client
-from pyrogram.idle import idle
+from pyrogram import Client, idle
 
 from config import API_ID, API_HASH, BOT_TOKEN
 
-# ---- ASSISTANT (USER ACCOUNT) ----
+# ---- ASSISTANT ----
 from assistants.assistant_system import assistant, start_assistant
 
 # ---- UTILS ----
-from utils.utils_system import (
-    LOGGER,
-    init_utils,
-    get_call,   # ✅ IMPORTANT
-)
+from utils.utils_system import LOGGER, init_utils, get_call
 
-# ---- BOT CLIENT ----
+# ---- BOT ----
 bot = Client(
     "musicbot",
     api_id=API_ID,
@@ -28,34 +22,33 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-# ---- LOAD PLUGINS (AUTO LOAD COMMANDS) ----
-import plugins.plugins_system   # ❗ REQUIRED
+# ---- LOAD PLUGINS ----
+import plugins.plugins_system
 
 
 async def main():
-    # 1️⃣ Init utils (cookies, logger, cache)
+    # Utils init
     await init_utils()
 
-    # 2️⃣ Start assistant (USER account)
+    # Assistant start
     LOGGER.info("Starting assistant...")
     await start_assistant()
 
-    # 3️⃣ Init PyTgCalls SAFELY (NO circular import)
-    LOGGER.info("Initializing PyTgCalls...")
+    # PyTgCalls init
+    LOGGER.info("Starting PyTgCalls...")
     call = get_call(assistant)
     await call.start()
 
-    # 4️⃣ Start bot
+    # Bot start
     LOGGER.info("Starting bot...")
     await bot.start()
 
     LOGGER.info("🎵 MusicBot started successfully")
 
-    # 5️⃣ Idle (Pyrogram 2.x way)
+    # Idle (Pyrogram 2.x)
     await idle()
 
-    # 6️⃣ Graceful shutdown
-    LOGGER.info("Stopping bot...")
+    # Shutdown
     await bot.stop()
     await assistant.stop()
 
