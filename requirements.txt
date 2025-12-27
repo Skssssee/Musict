@@ -1,9 +1,6 @@
 pyrogram==2.0.106
 tgcrypto
-
-# 🔥 IMPORTANT: Stable PyTgCalls (VC bots ke liye best)
-pytgcalls==3.0.0.dev24
-
+pytgcalls==2.1.0
 yt-dlp
 aiohttp
 pymongo
