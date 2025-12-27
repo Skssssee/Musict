@@ -137,3 +137,18 @@ def player_buttons():
 async def init_utils():
     await load_cookies()
     LOGGER.info("Utils system initialized")
+
+# ======================================================
+# NOW PLAYING TEXT (USED BY PLUGINS)
+# ======================================================
+
+def now_playing_text(title: str, duration: str, user):
+    """
+    Formats now playing message
+    """
+    return (
+        f"🎶 <b>Now Playing</b>\n\n"
+        f"<b>Title:</b> {title}\n"
+        f"<b>Duration:</b> {duration}\n"
+        f"<b>Requested by:</b> {user.mention}"
+        )
