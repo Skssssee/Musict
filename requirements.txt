@@ -1,8 +1,8 @@
 pyrogram==2.0.106
 tgcrypto
-pytgcalls==0.0.24
-yt-dlp
 aiohttp
+yt-dlp
 pymongo
 psutil
 python-dotenv
+git+https://github.com/pytgcalls/pytgcalls.git@dev
