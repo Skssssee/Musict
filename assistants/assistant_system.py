@@ -5,15 +5,15 @@ from pyrogram import Client
 from pyrogram.errors import RPCError
 
 from config import API_ID, API_HASH, STRING_SESSION
-from utils.logger import LOGGER   # ✅ SAFE IMPORT
+from utils.logger import LOGGER
 
 
 assistant = Client(
-    name="assistant",
+    "assistant",
     api_id=API_ID,
     api_hash=API_HASH,
     session_string=STRING_SESSION,
-    in_memory=True,
+    in_memory=True
 )
 
 
@@ -32,6 +32,19 @@ async def start_assistant():
 async def stop_assistant():
     try:
         await assistant.stop()
-        LOGGER.info("Assistant stopped successfully")
+        LOGGER.info("Assistant stopped")
     except Exception as e:
         LOGGER.error(f"Assistant stop error: {e}")
+
+
+async def get_assistant_id():
+    me = await assistant.get_me()
+    return me.id
+
+
+async def is_assistant_alive():
+    try:
+        await assistant.get_me()
+        return True
+    except Exception:
+        return False
