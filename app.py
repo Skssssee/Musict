@@ -1,24 +1,19 @@
+
 # ======================================================
 # app.py
-# MAIN ENTRY POINT (FIXED)
+# MAIN ENTRY POINT (PYROGRAM 2.x FIXED)
 # ======================================================
 
 import asyncio
-
-from pyrogram import Client
-from pyrogram.idle import idle
+from pyrogram import Client, idle
 
 from config import API_ID, API_HASH, BOT_TOKEN
 
-# ---- ASSISTANT (USER ACCOUNT) ----
+# ---- ASSISTANT ----
 from assistants.assistant_system import assistant, start_assistant
 
 # ---- UTILS ----
-from utils.utils_system import (
-    LOGGER,
-    init_utils,
-    get_call,
-)
+from utils.utils_system import LOGGER, init_utils, get_call
 
 # ---- BOT CLIENT ----
 bot = Client(
@@ -28,19 +23,19 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-# ---- LOAD PLUGINS (AUTO LOAD COMMANDS) ----
-import plugins.plugins_system   # ❗ DO NOT REMOVE
+# ---- LOAD COMMANDS ----
+import plugins.plugins_system  # ❗ REQUIRED
 
 
 async def main():
-    # 1️⃣ Init utils (cookies, logger)
+    # 1️⃣ Init utils
     await init_utils()
 
-    # 2️⃣ Start assistant (user account)
+    # 2️⃣ Start assistant
     LOGGER.info("Starting assistant...")
     await start_assistant()
 
-    # 3️⃣ Init PyTgCalls with assistant
+    # 3️⃣ Start PyTgCalls
     LOGGER.info("Starting PyTgCalls...")
     call = get_call(assistant)
     await call.start()
@@ -54,10 +49,10 @@ async def main():
     # 5️⃣ Idle
     await idle()
 
-    # 6️⃣ Shutdown (optional safety)
+    # 6️⃣ Cleanup
     await bot.stop()
     await assistant.stop()
 
 
 if __name__ == "__main__":
-    asyncio.get_event_loop().run_until_complete(main())
+    asyncio.run(main())
