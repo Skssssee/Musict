@@ -1,19 +1,14 @@
-
 # ======================================================
-# app.py
-# MAIN ENTRY POINT (PYROGRAM 2.x FIXED)
+# app.py  (FINAL – STABLE)
 # ======================================================
 
 import asyncio
-from pyrogram import Client, idle
+from pyrogram import Client
+from pyrogram.errors import UserAlreadyParticipant
 
-from config import API_ID, API_HASH, BOT_TOKEN
-
-# ---- ASSISTANT ----
-from assistants.assistant_system import assistant, start_assistant
-
-# ---- UTILS ----
-from utils.utils_system import LOGGER, init_utils, get_call
+from config import API_ID, API_HASH, BOT_TOKEN, LOGGER_ID
+from assistants.assistant_system import start_assistant, assistant
+from utils.utils_system import LOGGER, init_utils
 
 # ---- BOT CLIENT ----
 bot = Client(
@@ -23,22 +18,30 @@ bot = Client(
     bot_token=BOT_TOKEN
 )
 
-# ---- LOAD COMMANDS ----
-import plugins.plugins_system  # ❗ REQUIRED
+# ---- LOAD PLUGINS ----
+import plugins.plugins_system   # DO NOT REMOVE
 
 
 async def main():
-    # 1️⃣ Init utils
+    # 1️⃣ Utils
     await init_utils()
 
-    # 2️⃣ Start assistant
+    # 2️⃣ Assistant
     LOGGER.info("Starting assistant...")
     await start_assistant()
 
-    # 3️⃣ Start PyTgCalls
-    LOGGER.info("Starting PyTgCalls...")
-    call = get_call(assistant)
-    await call.start()
+    # 3️⃣ Auto-join logger group (FIX PEER ID INVALID)
+    if LOGGER_ID:
+        try:
+            await assistant.join_chat(LOGGER_ID)
+            await assistant.send_message(
+                LOGGER_ID,
+                "✅ Assistant joined group automatically"
+            )
+        except UserAlreadyParticipant:
+            pass
+        except Exception as e:
+            LOGGER.warning(f"Assistant join failed: {e}")
 
     # 4️⃣ Start bot
     LOGGER.info("Starting bot...")
@@ -47,12 +50,8 @@ async def main():
     LOGGER.info("🎵 MusicBot started successfully")
 
     # 5️⃣ Idle
-    await idle()
-
-    # 6️⃣ Cleanup
-    await bot.stop()
-    await assistant.stop()
+    await asyncio.Event().wait()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.get_event_loop().run_until_complete(main())
