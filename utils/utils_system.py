@@ -1,5 +1,7 @@
+
 # ======================================================
-# utils/utils_system.py  (py-tgcalls 2.x FIXED)
+# utils/utils_system.py
+# FIXED & STABLE FOR py-tgcalls 2.x
 # ======================================================
 
 import os
@@ -11,8 +13,8 @@ from typing import Optional, Dict
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from pytgcalls import PyTgCalls
-from pytgcalls.types.stream import StreamAudio, StreamVideo
-from pytgcalls.types.input_stream import AudioSource
+from pytgcalls.types import AudioPiped, AudioVideoPiped
+from pytgcalls.types import HighQualityAudio, MediumQualityVideo
 
 from config import COOKIE_URL, LOGGER_ID
 
@@ -35,13 +37,17 @@ logging.basicConfig(
 LOGGER = logging.getLogger("MusicBot")
 
 
+# ======================================================
+# SEND LOG TO LOGGER GC
+# ======================================================
+
 async def send_log(bot, text: str):
     if not LOGGER_ID:
         return
     try:
         await bot.send_message(LOGGER_ID, f"📜 **MusicBot Log**\n\n{text}")
     except Exception as e:
-        LOGGER.error(e)
+        LOGGER.error(f"Log send failed: {e}")
 
 
 # ======================================================
@@ -54,29 +60,20 @@ async def load_cookies():
     if not COOKIE_URL:
         return
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(COOKIE_URL) as resp:
-            if resp.status == 200:
-                os.makedirs("cookies", exist_ok=True)
-                with open(COOKIES_PATH, "w", encoding="utf-8") as f:
-                    f.write(await resp.text())
-                LOGGER.info("Cookies loaded")
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(COOKIE_URL) as resp:
+                if resp.status == 200:
+                    os.makedirs("cookies", exist_ok=True)
+                    with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+                        f.write(await resp.text())
+                    LOGGER.info("YouTube cookies loaded")
+    except Exception as e:
+        LOGGER.error(f"Cookie error: {e}")
 
 
 # ======================================================
-# PYTGCALLS INIT (NO CIRCULAR IMPORT)
-# ======================================================
-
-call: Optional[PyTgCalls] = None
-
-def init_pytgcalls(assistant):
-    global call
-    call = PyTgCalls(assistant)
-    return call
-
-
-# ======================================================
-# YOUTUBE STREAM (NO DOWNLOAD)
+# YT-DLP (NO DOWNLOAD, DIRECT STREAM)
 # ======================================================
 
 def yt_opts():
@@ -89,68 +86,83 @@ def yt_opts():
 
 async def get_audio_stream(query: str) -> str:
     with yt_dlp.YoutubeDL({**yt_opts(), "format": "bestaudio"}) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info["url"]
+        return ydl.extract_info(query, download=False)["url"]
 
 
 async def get_video_stream(query: str) -> str:
-    with yt_dlp.YoutubeDL(
-        {**yt_opts(), "format": "bestvideo[height<=360]+bestaudio"}
-    ) as ydl:
-        info = ydl.extract_info(query, download=False)
-        return info["url"]
+    with yt_dlp.YoutubeDL({**yt_opts(), "format": "bestvideo[height<=360]+bestaudio"}) as ydl:
+        return ydl.extract_info(query, download=False)["url"]
 
 
 # ======================================================
-# STREAM CACHE
+# PYTGCALLS INIT (NO CIRCULAR IMPORT)
 # ======================================================
 
-STREAM_CACHE: Dict[str, str] = {}
+call: Optional[PyTgCalls] = None
 
-def get_cached(q): return STREAM_CACHE.get(q)
-def set_cache(q, u): STREAM_CACHE[q] = u
+def init_pytgcalls(assistant_client):
+    global call
+    call = PyTgCalls(assistant_client)
+    return call
 
 
 # ======================================================
-# VOICE CHAT CONTROLS (FIXED)
+# VC CONTROLS
 # ======================================================
 
-async def play_audio(chat_id: int, url: str):
+async def play_audio(chat_id: int, stream: str):
     await call.join_group_call(
         chat_id,
-        StreamAudio(AudioSource(url))
+        AudioPiped(stream, HighQualityAudio())
     )
 
 
-async def play_video(chat_id: int, url: str):
+async def play_video(chat_id: int, stream: str):
     await call.join_group_call(
         chat_id,
-        StreamVideo(AudioSource(url))
+        AudioVideoPiped(
+            stream,
+            HighQualityAudio(),
+            MediumQualityVideo()
+        )
     )
 
 
 async def stop_stream(chat_id: int):
     try:
         await call.leave_group_call(chat_id)
-    except:
+    except Exception:
         pass
 
 
 # ======================================================
-# PLAYER UI
+# INLINE UI
 # ======================================================
 
 def player_buttons():
     return InlineKeyboardMarkup(
-        [[
-            InlineKeyboardButton("⏭ Skip", callback_data="skip"),
-            InlineKeyboardButton("⏹ Stop", callback_data="stop"),
-        ]]
+        [
+            [
+                InlineKeyboardButton("⏸ Pause", callback_data="pause"),
+                InlineKeyboardButton("▶ Resume", callback_data="resume"),
+            ],
+            [
+                InlineKeyboardButton("⏭ Skip", callback_data="skip"),
+                InlineKeyboardButton("⏹ Stop", callback_data="stop"),
+            ],
+            [
+                InlineKeyboardButton("❌ Close", callback_data="close"),
+            ]
+        ]
     )
 
 
-def now_playing_text(title, user):
-    return f"🎶 **Now Playing**\n{title}\nRequested by {user.mention}"
+def now_playing_text(title: str, user):
+    return (
+        f"🎶 **Now Playing**\n\n"
+        f"**Title:** {title}\n"
+        f"**Requested by:** {user.mention}"
+    )
 
 
 # ======================================================
@@ -159,4 +171,4 @@ def now_playing_text(title, user):
 
 async def init_utils():
     await load_cookies()
-    LOGGER.info("Utils ready")
+    LOGGER.info("Utils initialized")
